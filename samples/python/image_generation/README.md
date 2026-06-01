@@ -4,6 +4,7 @@ Examples in this folder showcase inference of text to image models like Stable D
 
 There are several sample files:
  - [`text2image.py`](./text2image.py) demonstrates basic usage of the text to image pipeline
+ - [`Z_IMAGE_TURBO_INT4_MODELSCOPE.md`](./Z_IMAGE_TURBO_INT4_MODELSCOPE.md) (**Z-Image-Turbo**) end-to-end guide: build from source → download INT4 model from ModelScope → run inference
  - [`lora_text2image.py`](./lora_text2image.py) shows how to apply LoRA adapters to the pipeline
  - [`taylorseer_text2image.py`](./taylorseer_text2image.py) demonstrates text to image generation with TaylorSeer caching optimization for improved performance. Flux and StableDiffusion3 models are supported.
  - [`heterogeneous_stable_diffusion.py`](./heterogeneous_stable_diffusion.py) shows how to assemble a heterogeneous text2image pipeline from individual subcomponents (scheduler, text encoder, unet, vae decoder)
