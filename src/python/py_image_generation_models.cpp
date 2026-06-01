@@ -16,6 +16,8 @@
 #include "openvino/genai/image_generation/unet2d_condition_model.hpp"
 #include "openvino/genai/image_generation/sd3_transformer_2d_model.hpp"
 #include "openvino/genai/image_generation/flux_transformer_2d_model.hpp"
+#include "openvino/genai/image_generation/z_image_transformer_2d_model.hpp"
+#include "openvino/genai/image_generation/z_image_text_encoder.hpp"
 
 #include "tokenizer/tokenizers_path.hpp"
 #include "py_utils.hpp"
@@ -435,6 +437,148 @@ void init_flux_transformer_2d_model(py::module_& m) {
                 {
                     py::gil_scoped_release rel;
                     self.compile(device,  map);
+                }
+            },
+            py::arg("device"), "device on which inference will be done",
+            R"(
+                Compiles the model.
+                device (str): Device to run the model on (e.g., CPU, GPU).
+                kwargs: Device properties.
+            )");
+}
+
+void init_z_image_transformer_2d_model(py::module_& m) {
+    auto z_image_transformer_2d_model = py::class_<ov::genai::ZImageTransformer2DModel>(m, "ZImageTransformer2DModel", "ZImageTransformer2DModel class.")
+        .def(py::init([](const std::filesystem::path& root_dir) {
+            return std::make_unique<ov::genai::ZImageTransformer2DModel>(root_dir);
+        }),
+        py::arg("root_dir"), "Model root directory",
+        R"(
+            ZImageTransformer2DModel class
+            root_dir (os.PathLike): Model root directory.
+        )")
+        .def(py::init([](
+            const std::filesystem::path& root_dir,
+            const std::string& device,
+            const py::kwargs& kwargs
+        ) {
+            return std::make_unique<ov::genai::ZImageTransformer2DModel>(root_dir, device, pyutils::kwargs_to_any_map(kwargs));
+        }),
+        py::arg("root_dir"), "Model root directory",
+        py::arg("device"), "Device on which inference will be done",
+        R"(
+            ZImageTransformer2DModel class
+            root_dir (os.PathLike): Model root directory.
+            device (str): Device on which inference will be done.
+            kwargs: Device properties.
+        )")
+        .def(py::init([](const ov::genai::ZImageTransformer2DModel& model) {
+            return std::make_unique<ov::genai::ZImageTransformer2DModel>(model);
+        }),
+        py::arg("model"), "ZImageTransformer2DModel model"
+        R"(
+            ZImageTransformer2DModel class
+            model (ZImageTransformer2DModel): ZImageTransformer2DModel model
+        )");
+
+    py::class_<ov::genai::ZImageTransformer2DModel::Config>(z_image_transformer_2d_model, "Config", "This class is used for storing ZImageTransformer2DModel config.")
+        .def(py::init([](const std::filesystem::path& config_path) {
+            return std::make_unique<ov::genai::ZImageTransformer2DModel::Config>(config_path);
+        }),
+        py::arg("config_path"))
+        .def_readwrite("in_channels", &ov::genai::ZImageTransformer2DModel::Config::in_channels)
+        .def_readwrite("default_sample_size", &ov::genai::ZImageTransformer2DModel::Config::m_default_sample_size);
+
+    z_image_transformer_2d_model.def("get_config", &ov::genai::ZImageTransformer2DModel::get_config)
+        .def("reshape", &ov::genai::ZImageTransformer2DModel::reshape, py::arg("batch_size"), py::arg("height"), py::arg("width"), py::arg("tokenizer_model_max_length"))
+        .def("infer",
+            &ov::genai::ZImageTransformer2DModel::infer,
+            py::call_guard<py::gil_scoped_release>(),
+            py::arg("latent"),
+            py::arg("timestep"))
+        .def("set_hidden_states", &ov::genai::ZImageTransformer2DModel::set_hidden_states, py::arg("tensor_name"), py::arg("encoder_hidden_states"))
+        .def(
+            "compile",
+            [](ov::genai::ZImageTransformer2DModel& self,
+               const std::string& device,
+               const py::kwargs& kwargs
+            ) {
+                auto map = pyutils::kwargs_to_any_map(kwargs);
+                {
+                    py::gil_scoped_release rel;
+                    self.compile(device, map);
+                }
+            },
+            py::arg("device"), "device on which inference will be done",
+            R"(
+                Compiles the model.
+                device (str): Device to run the model on (e.g., CPU, GPU).
+                kwargs: Device properties.
+            )");
+}
+
+void init_z_image_text_encoder(py::module_& m) {
+    auto z_image_text_encoder = py::class_<ov::genai::ZImageTextEncoder>(m, "ZImageTextEncoder", "ZImageTextEncoder class.")
+        .def(py::init([](const std::filesystem::path& root_dir) {
+            ScopedVar env_manager(pyutils::ov_tokenizers_module_path());
+            return std::make_unique<ov::genai::ZImageTextEncoder>(root_dir);
+        }),
+        py::arg("root_dir"), "Model root directory",
+        R"(
+            ZImageTextEncoder class
+            root_dir (os.PathLike): Model root directory.
+        )")
+        .def(py::init([](
+            const std::filesystem::path& root_dir,
+            const std::string& device,
+            const py::kwargs& kwargs
+        ) {
+            ScopedVar env_manager(pyutils::ov_tokenizers_module_path());
+            return std::make_unique<ov::genai::ZImageTextEncoder>(root_dir, device, pyutils::kwargs_to_any_map(kwargs));
+        }),
+        py::arg("root_dir"), "Model root directory",
+        py::arg("device"), "Device on which inference will be done",
+        R"(
+            ZImageTextEncoder class
+            root_dir (os.PathLike): Model root directory.
+            device (str): Device on which inference will be done.
+            kwargs: Device properties.
+        )")
+        .def(py::init([](const ov::genai::ZImageTextEncoder& model) {
+            return std::make_unique<ov::genai::ZImageTextEncoder>(model);
+        }),
+        py::arg("model"), "ZImageTextEncoder model"
+        R"(
+            ZImageTextEncoder class
+            model (ZImageTextEncoder): ZImageTextEncoder model
+        )");
+
+    py::class_<ov::genai::ZImageTextEncoder::Config>(z_image_text_encoder, "Config", "This class is used for storing ZImageTextEncoder config.")
+        .def(py::init([](const std::filesystem::path& config_path) {
+            return std::make_unique<ov::genai::ZImageTextEncoder::Config>(config_path);
+        }),
+        py::arg("config_path"))
+        .def_readwrite("hidden_state_index", &ov::genai::ZImageTextEncoder::Config::hidden_state_index)
+        .def_readwrite("enable_thinking", &ov::genai::ZImageTextEncoder::Config::enable_thinking);
+
+    z_image_text_encoder.def("get_config", &ov::genai::ZImageTextEncoder::get_config)
+        .def("reshape", &ov::genai::ZImageTextEncoder::reshape, py::arg("batch_size"), py::arg("max_sequence_length"))
+        .def("infer",
+            &ov::genai::ZImageTextEncoder::infer,
+            py::call_guard<py::gil_scoped_release>(),
+            py::arg("prompt"),
+            py::arg("max_sequence_length"))
+        .def("get_output_tensor", &ov::genai::ZImageTextEncoder::get_output_tensor, py::arg("idx"))
+        .def(
+            "compile",
+            [](ov::genai::ZImageTextEncoder& self,
+               const std::string& device,
+               const py::kwargs& kwargs
+            ) {
+                auto map = pyutils::kwargs_to_any_map(kwargs);
+                {
+                    py::gil_scoped_release rel;
+                    self.compile(device, map);
                 }
             },
             py::arg("device"), "device on which inference will be done",
