@@ -80,7 +80,7 @@ pip install --upgrade-strategy eager -r ../../deployment-requirements.txt
 
   To download the LoRA adapter used in the example below:
   ```sh
-  huggingface-cli download svjack/ltx_video_pixel_early_lora ltx_pixel_pytorch_lora_weights.safetensors
+  hf download svjack/ltx_video_pixel_early_lora ltx_pixel_pytorch_lora_weights.safetensors
   ```
 
 - **Main Feature:** Apply a LoRA adapter to a text-to-video pipeline for customized generation.
@@ -143,6 +143,8 @@ video = pipe.generate(
   ```
 
 The sample will generate two video files: `taylorseer_baseline.avi` (without caching) and `taylorseer.avi` (with caching), and display a performance comparison showing the speedup achieved.
+
+TaylorSeer caching is **enabled by default** for the LTX-Video pipeline. To customize caching parameters, pass a `TaylorSeerCacheConfig` directly to `generate()` or apply it persistently via `set_generation_config()`. To disable caching, set `taylorseer_config = None`.
 
 The TaylorSeer configuration parameters can be adjusted in the source code:
 - `cache_interval`: Number of steps between cache updates (default: 3)

@@ -17,7 +17,6 @@
 #include "openvino/genai/generation_handle.hpp"
 #include "openvino/genai/scheduler_config.hpp"
 #include "openvino/genai/generation_config.hpp"
-#include "visual_language/processor_config.hpp"
 
 #include "openvino/genai/streamer_base.hpp"
 
@@ -86,12 +85,15 @@ void initialize_position_ids(ov::Tensor& position_ids, const ov::Tensor& attenti
 template <typename T> struct OmitOptional { using value = T; };
 template <typename T> struct OmitOptional<std::optional<T>> { using value = T; };
 
+template <typename T> constexpr bool is_optional = false;
+template <typename T> constexpr bool is_optional<std::optional<T>> = true;
+
 template <typename T>
 void read_anymap_param(const ov::AnyMap& config_map, const std::string& name, T& param) {
     auto it = config_map.find(name);
     if (it != config_map.end()) {
         if (it->second.empty()) {
-            if (ov::genai::utils::is_container<T>)
+            if (ov::genai::utils::is_container<T> || ov::genai::utils::is_optional<T>)
                 param = T{};
             else {
                 OPENVINO_THROW("Got empty ov::Any for parameter name: " + name);
@@ -107,6 +109,9 @@ const std::string STREAMER_ARG_NAME = "streamer";
 const std::string CONFIG_ARG_NAME = "generation_config";
 const std::string DRAFT_MODEL_ARG_NAME = "draft_model";
 const std::string EXTENSIONS_ARG_NAME = "extensions";
+const std::string IMAGES_BATCHES_ARG_NAME = "images_batches";
+const std::string VIDEOS_BATCHES_ARG_NAME = "videos_batches";
+const std::string VIDEOS_METADATA_BATCHES_ARG_NAME = "videos_metadata_batches";
 
 template<typename Config = ov::genai::GenerationConfig>
 Config from_config_json_if_exists(const std::filesystem::path& models_path, const char config_name[] = "generation_config.json") {
@@ -117,11 +122,6 @@ Config from_config_json_if_exists(const std::filesystem::path& models_path, cons
 ov::genai::StreamerVariant get_streamer_from_map(const ov::AnyMap& config_map);
 
 ov::genai::OptionalGenerationConfig get_config_from_map(const ov::AnyMap& config_map);
-
-ProcessorConfig from_any_map(
-    const ov::AnyMap& config_map,
-    const ProcessorConfig& initial
-);
 
 ov::genai::ModelDesc get_draft_model_from_config(const ov::AnyMap& config);
 
@@ -138,6 +138,19 @@ void apply_gather_before_matmul_transformation(std::shared_ptr<ov::Model> model)
 ov::Core& singleton_core();
 
 std::pair<ov::AnyMap, bool> extract_gguf_properties(const ov::AnyMap& external_properties);
+
+/// @brief Key used in the main properties map to carry per-model property sub-maps.
+/// Value shape: ov::AnyMap keyed by model role (e.g. "vision_embeddings").
+extern const std::string PER_MODEL_PROPERTIES;
+
+/// @brief Resolve properties for @p model_role by merging two layers (priority low to high):
+///        1. global (top-level keys, excluding meta keys PER_MODEL_PROPERTIES)
+///        2. PER_MODEL_PROPERTIES[model_role]
+/// @param properties The main properties map. Not modified.
+/// @param model_role Sub-model role (e.g. "vision_embeddings").
+/// @return A new ov::AnyMap with the merged result. The input map is left
+///         untouched so callers may continue using the meta keys.
+ov::AnyMap get_model_properties(ov::AnyMap& properties, const std::string& model_role);
 
 std::pair<ov::AnyMap, bool> extract_paired_input_props(const ov::AnyMap& external_properties);
 
@@ -363,7 +376,7 @@ void save_openvino_model(const std::shared_ptr<ov::Model>& model, const std::str
 
 ov::Tensor merge_text_and_image_embeddings_llava(const ov::Tensor& input_ids, ov::Tensor& text_embeds, const std::vector<ov::Tensor>& image_embeds, int64_t image_token_id);
 
-size_t get_available_gpu_memory(const std::string& device, size_t num_decoder_layers);
+size_t get_available_gpu_memory(const std::string& device, size_t num_cache_tensors);
 
 /**
  * @brief Extracts and removes blob import/export related properties from the provided map.
@@ -400,6 +413,11 @@ bool has_input(const std::shared_ptr<Model>& model, const std::string& name);
  * @return A pair of ov::Coordinate (start, end) for ROI slicing.
  */
 std::pair<ov::Coordinate, ov::Coordinate> make_roi(const std::vector<size_t>& shape, const size_t dim, const size_t range_start, const size_t range_end);
+
+/**
+ * Create a sub-tensor (ROI view) by slicing along a single dimension.
+ */
+ov::Tensor make_tensor_slice(const ov::Tensor& tensor, size_t dim, size_t start_pos, size_t end_pos);
 
 ov::genai::GenerationConfig get_beam_search_config();
 ov::genai::GenerationConfig get_greedy_config();
